@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customers - Smart CRM</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="navbar">
+
+    <h2>Smart CRM</h2>
+
+    <div class="nav-links">
+
+        <a href="dashboard.html">Dashboard</a>
+        <a href="customers.html">Customers</a>
+        <a href="index.html">Logout</a>
+
+    </div>
+
+</nav>
+
+<h1>Customer Management</h1>
+
+<div class="customer-form">
+
+    <input type="text" id="name" placeholder="Customer Name">
+    <input type="email" id="email" placeholder="Email Address">
+    <input type="number" id="budget" placeholder="Budget">
+    <input type="text" id="interest" placeholder="Interest">
+
+    <button onclick="addCustomer()">Add Customer</button>
+
+</div>
+
+<h2 class="customer-title">Customer List</h2>
+
+<div class="search-box">
+
+    <input type="text" id="searchInput" placeholder="Search Customer">
+
+    <button onclick="searchCustomer()">Search</button>
+
+</div>
+
+<div class="sort-buttons">
+
+    <button onclick="sortByName()">Sort By Name</button>
+    <button onclick="sortByBudget()">Sort By Budget</button>
+
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Budget</th>
+            <th>Interest</th>
+            <th>Lead Score</th>
+            <th>Action</th>
+            <th>Created At</th>
+            <th>Sales Person</th>
+            <th>Status</th>
+        </tr>
+    </thead>
+
+    <tbody id="customerTable"></tbody>
+</table>
+
+<script src="script.js"></script>
+
+</body>
+</html>

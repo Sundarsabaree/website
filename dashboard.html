@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard - Smart CRM</title>
+<link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<nav class="navbar">
+
+    <h2>Smart CRM</h2>
+
+    <div class="nav-links">
+
+        <a href="dashboard.html">Dashboard</a>
+        <a href="customers.html">Customers</a>
+        <a href="index.html">Logout</a>
+
+    </div>
+
+</nav>
+
+<h1>Smart CRM Dashboard</h1>
+
+<!-- 🔥 ADDED USER NAME -->
+<p style="text-align:center; font-size:16px; color:gray;">
+    Welcome, <span id="userEmail"></span>
+</p>
+
+<div style="text-align:center; margin-bottom:20px;">
+    <button onclick="window.location.href='customers.html'">
+        Manage Customers
+    </button>
+</div>
+
+<div class="dashboard-container">
+
+    <div class="card">
+        <h2>Total Customers</h2>
+        <p id="totalCustomers">0</p>
+    </div>
+
+    <div class="card">
+        <h2>Hot Leads</h2>
+        <p id="hotLeads">0</p>
+    </div>
+
+    <div class="card">
+        <h2>Pending Follow-ups</h2>
+        <p id="pendingFollowups">0</p>
+    </div>
+
+    <div class="card">
+        <h2>Total Sales</h2>
+        <p id="totalSales">₹0</p>
+    </div>
+
+</div>
+
+<script src="script.js"></script>
+
+</body>
+</html>
