@@ -12,7 +12,12 @@
     "prisma:push": "prisma db push",
     "prisma:seed": "tsx prisma/seed.ts"
   },
-  "keywords": ["crm", "enterprise", "express", "prisma"],
+  "keywords": [
+    "crm",
+    "enterprise",
+    "express",
+    "prisma"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
@@ -24,6 +29,7 @@
     "express-rate-limit": "^7.4.1",
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
+    "smart-crm-monorepo": "file:..",
     "zod": "^3.23.8"
   },
   "devDependencies": {

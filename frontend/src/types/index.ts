@@ -1,71 +1,85 @@
-export type Role = 'ADMIN' | 'MANAGER' | 'SALES_EXECUTIVE' | 'VIEWER';
+// Shared frontend types. These mirror backend/prisma/schema.prisma —
+// keep both in sync when the schema changes.
 
-export type CustomerStatus = 'ACTIVE' | 'INACTIVE' | 'PROSPECT';
+export type Role = "ADMIN" | "MANAGER" | "SALES_EXECUTIVE" | "VIEWER";
 
-export type LeadStage = 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'PROPOSAL' | 'NEGOTIATION' | 'WON' | 'LOST';
+export type CustomerStatus = "ACTIVE" | "INACTIVE" | "PROSPECT";
 
-export type Priority = 'LOW' | 'MEDIUM' | 'HIGH';
+export type LeadStage =
+  | "NEW"
+  | "CONTACTED"
+  | "QUALIFIED"
+  | "PROPOSAL"
+  | "NEGOTIATION"
+  | "WON"
+  | "LOST";
 
-export type DealStage = 'DISCOVERY' | 'QUALIFICATION' | 'PROPOSAL' | 'NEGOTIATION' | 'CLOSED_WON' | 'CLOSED_LOST';
+export type DealStage =
+  | "DISCOVERY"
+  | "QUALIFICATION"
+  | "PROPOSAL"
+  | "NEGOTIATION"
+  | "CLOSED_WON"
+  | "CLOSED_LOST";
 
-export type TaskStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
+export type Priority = "LOW" | "MEDIUM" | "HIGH";
 
-export type MeetingType = 'ONLINE' | 'IN_PERSON' | 'PHONE';
+export type TaskStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED";
 
-export type MeetingStatus = 'SCHEDULED' | 'COMPLETED' | 'CANCELLED';
+export type MeetingType = "ONLINE" | "IN_PERSON" | "PHONE";
 
-export type NotificationType = 'CUSTOMER' | 'TASK' | 'DEAL' | 'MEETING' | 'SYSTEM';
+export type MeetingStatus = "SCHEDULED" | "COMPLETED" | "CANCELLED";
+
+export type NotificationType =
+  | "CUSTOMER"
+  | "TASK"
+  | "DEAL"
+  | "MEETING"
+  | "SYSTEM";
+
+/** Minimal user reference embedded in other records (e.g. Customer.assignedTo). */
+export interface UserRef {
+  id: string;
+  name: string;
+  email?: string;
+  avatar?: string | null;
+}
 
 export interface User {
   id: string;
   name: string;
   email: string;
   role: Role;
-  avatar?: string;
-  phone?: string;
-  department?: string;
+  avatar?: string | null;
+  phone?: string | null;
+  department?: string | null;
   status?: string;
   createdAt?: string;
-  _count?: {
-    assignedCustomers?: number;
-    assignedLeads?: number;
-    assignedDeals?: number;
-    assignedTasks?: number;
-  };
+  updatedAt?: string;
 }
 
 export interface Customer {
   id: string;
   name: string;
   email: string;
-  phone?: string;
-  company?: string;
-  industry?: string;
+  phone?: string | null;
+  company?: string | null;
+  industry?: string | null;
   budget: number;
-  interest?: string;
-  leadScore?: string;
-  address?: string;
-  city?: string;
-  state?: string;
-  country?: string;
+  interest?: string | null;
+  leadScore?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  country?: string | null;
   status: CustomerStatus;
-  notes?: string;
-  assignedToId?: string;
-  assignedTo?: Partial<User>;
-  createdById?: string;
-  createdBy?: Partial<User>;
+  notes?: string | null;
+  assignedToId?: string | null;
+  assignedTo?: UserRef | null;
+  createdById?: string | null;
+  createdBy?: UserRef | null;
   createdAt: string;
   updatedAt: string;
-  _count?: {
-    deals?: number;
-    tasks?: number;
-    meetings?: number;
-    leads?: number;
-  };
-  leads?: Lead[];
-  deals?: Deal[];
-  tasks?: Task[];
-  meetings?: Meeting[];
 }
 
 export interface Lead {
@@ -73,17 +87,17 @@ export interface Lead {
   title: string;
   contactName: string;
   email: string;
-  phone?: string;
-  company?: string;
+  phone?: string | null;
+  company?: string | null;
   value: number;
   stage: LeadStage;
   priority: Priority;
-  notes?: string;
-  followUpDate?: string;
-  assignedToId?: string;
-  assignedTo?: Partial<User>;
-  customerId?: string;
-  customer?: Partial<Customer>;
+  notes?: string | null;
+  followUpDate?: string | null;
+  assignedToId?: string | null;
+  assignedTo?: UserRef | null;
+  customerId?: string | null;
+  customer?: UserRef | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -94,11 +108,11 @@ export interface Deal {
   value: number;
   stage: DealStage;
   probability: number;
-  closingDate?: string;
-  customerId: string;
-  customer?: Partial<Customer>;
-  assignedToId?: string;
-  assignedTo?: Partial<User>;
+  closingDate?: string | null;
+  customerId?: string | null;
+  customer?: { id: string; name: string } | null;
+  assignedToId?: string | null;
+  assignedTo?: UserRef | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -106,16 +120,16 @@ export interface Deal {
 export interface Task {
   id: string;
   title: string;
-  description?: string;
-  dueDate?: string;
+  description?: string | null;
+  dueDate?: string | null;
   priority: Priority;
   status: TaskStatus;
-  assignedToId?: string;
-  assignedTo?: Partial<User>;
-  createdById?: string;
-  createdBy?: Partial<User>;
-  customerId?: string;
-  customer?: Partial<Customer>;
+  assignedToId?: string | null;
+  assignedTo?: UserRef | null;
+  createdById?: string | null;
+  createdBy?: UserRef | null;
+  customerId?: string | null;
+  customer?: { id: string; name: string } | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -123,66 +137,62 @@ export interface Task {
 export interface Meeting {
   id: string;
   title: string;
-  description?: string;
+  description?: string | null;
   startTime: string;
   endTime: string;
-  location?: string;
+  location?: string | null;
   type: MeetingType;
   status: MeetingStatus;
-  hostId?: string;
-  host?: Partial<User>;
-  customerId?: string;
-  customer?: Partial<Customer>;
+  hostId?: string | null;
+  host?: UserRef | null;
+  customerId?: string | null;
+  customer?: { id: string; name: string } | null;
   createdAt: string;
   updatedAt: string;
 }
 
-export interface CalendarEvent {
-  id: string;
-  originalId: string;
-  eventType: 'MEETING' | 'TASK_DEADLINE' | 'FOLLOW_UP';
-  title: string;
-  description?: string;
-  start: string;
-  end: string;
-  location?: string;
-  type?: MeetingType;
-  priority?: Priority;
-  status?: string;
-  host?: Partial<User>;
-  customer?: Partial<Customer>;
-  color: string;
-}
-
 export interface NotificationItem {
   id: string;
-  userId: string;
   title: string;
   message: string;
   type: NotificationType;
   isRead: boolean;
-  link?: string;
+  link?: string | null;
   createdAt: string;
 }
 
 export interface ActivityItem {
   id: string;
-  userId?: string;
-  user?: Partial<User>;
+  userId?: string | null;
+  user?: UserRef | null;
   action: string;
   entityType: string;
-  entityId?: string;
+  entityId?: string | null;
   details: string;
   createdAt: string;
 }
 
+/** Shape returned by GET /dashboard/stats. */
 export interface DashboardStats {
   totalCustomers: number;
   activeLeads: number;
+  hotLeadsCount: number;
   totalRevenue: number;
   pipelineValue: number;
   closedDeals: number;
   pendingTasks: number;
   meetingsToday: number;
-  hotLeadsCount: number;
+}
+
+/** Live per-employee performance figures, shown on Employees and Reports pages. */
+export interface EmployeePerformance {
+  userId: string;
+  customersAssigned: number;
+  customersConverted: number;
+  dealsClosed: number;
+  revenueGenerated: number;
+  tasksCompleted: number;
+  overdueTasks: number;
+  conversionRate: number;
+  performanceScore: number;
 }

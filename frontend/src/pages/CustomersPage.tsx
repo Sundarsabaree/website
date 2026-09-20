@@ -29,7 +29,7 @@ const statusBadge: Record<CustomerStatus, { variant: any; label: string }> = {
   PROSPECT: { variant: "amber", label: "Prospect" },
 };
 
-const leadScoreBadge = (score?: string) => {
+const leadScoreBadge = (score?: string | null) => {
   if (!score) return { variant: "slate" as const, label: "Unscored" };
   if (score.includes("Hot")) return { variant: "red" as const, label: score };
   if (score.includes("Medium"))

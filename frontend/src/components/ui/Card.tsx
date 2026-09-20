@@ -101,3 +101,4 @@ export const StatCard: React.FC<StatCardProps> = ({
     </motion.div>
   );
 };
+export default Card;

@@ -1,172 +1,151 @@
-import axios from 'axios';
+const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
-export const api = axios.create({
-  baseURL: '/api',
-  headers: {
-    'Content-Type': 'application/json'
-  }
-});
+const getHeaders = () => {
+  const token =
+    localStorage.getItem("crm_access_token") || localStorage.getItem("token");
 
-// Attach access token
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('crm_access_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
+  return {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+};
 
-// Token Refresh Interceptor
-let isRefreshing = false;
-let failedQueue: Array<{ resolve: (token: string) => void; reject: (err: any) => void }> = [];
+const buildQuery = (params?: Record<string, any>) => {
+  if (!params) return "";
 
-const processQueue = (error: any, token: string | null = null) => {
-  failedQueue.forEach((prom) => {
-    if (error) {
-      prom.reject(error);
-    } else {
-      prom.resolve(token!);
+  const search = new URLSearchParams();
+
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      search.append(key, String(value));
     }
   });
-  failedQueue = [];
+
+  const query = search.toString();
+  return query ? `?${query}` : "";
 };
 
-api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
+export const api = {
+  async get(endpoint: string) {
+    const res = await fetch(`${BASE_URL}${endpoint}`, {
+      headers: getHeaders(),
+    });
 
-    if (error.response?.status === 401 && !originalRequest._retry && !originalRequest.url?.includes('/auth/login')) {
-      if (isRefreshing) {
-        return new Promise((resolve, reject) => {
-          failedQueue.push({ resolve, reject });
-        })
-          .then((token) => {
-            originalRequest.headers.Authorization = `Bearer ${token}`;
-            return api(originalRequest);
-          })
-          .catch((err) => Promise.reject(err));
-      }
+    const json = await res.json();
 
-      originalRequest._retry = true;
-      isRefreshing = true;
-
-      const refreshToken = localStorage.getItem('crm_refresh_token');
-      if (!refreshToken) {
-        localStorage.removeItem('crm_access_token');
-        localStorage.removeItem('crm_refresh_token');
-        localStorage.removeItem('crm_user');
-        window.location.href = '/login';
-        return Promise.reject(error);
-      }
-
-      try {
-        const res = await axios.post('/api/auth/refresh', { refreshToken });
-        const { accessToken, refreshToken: newRefreshToken } = res.data.data;
-
-        localStorage.setItem('crm_access_token', accessToken);
-        localStorage.setItem('crm_refresh_token', newRefreshToken);
-
-        api.defaults.headers.common.Authorization = `Bearer ${accessToken}`;
-        originalRequest.headers.Authorization = `Bearer ${accessToken}`;
-
-        processQueue(null, accessToken);
-        return api(originalRequest);
-      } catch (refreshErr) {
-        processQueue(refreshErr, null);
-        localStorage.removeItem('crm_access_token');
-        localStorage.removeItem('crm_refresh_token');
-        localStorage.removeItem('crm_user');
-        window.location.href = '/login';
-        return Promise.reject(refreshErr);
-      } finally {
-        isRefreshing = false;
-      }
+    if (!res.ok) {
+      throw new Error(json?.message || `API Error: ${res.statusText}`);
     }
 
-    return Promise.reject(error);
-  }
-);
+    return { data: json };
+  },
 
-// API Endpoints Services
+  async post(endpoint: string, data: unknown) {
+    const res = await fetch(`${BASE_URL}${endpoint}`, {
+      method: "POST",
+      headers: getHeaders(),
+      body: JSON.stringify(data),
+    });
+
+    const json = await res.json();
+
+    if (!res.ok) {
+      throw new Error(json?.message || `API Error: ${res.statusText}`);
+    }
+
+    return { data: json };
+  },
+
+  async put(endpoint: string, data: unknown) {
+    const res = await fetch(`${BASE_URL}${endpoint}`, {
+      method: "PUT",
+      headers: getHeaders(),
+      body: JSON.stringify(data),
+    });
+
+    const json = await res.json();
+
+    if (!res.ok) {
+      throw new Error(json?.message || `API Error: ${res.statusText}`);
+    }
+
+    return { data: json };
+  },
+
+  async delete(endpoint: string) {
+    const res = await fetch(`${BASE_URL}${endpoint}`, {
+      method: "DELETE",
+      headers: getHeaders(),
+    });
+
+    let json = {};
+    try {
+      json = await res.json();
+    } catch {}
+
+    if (!res.ok) {
+      throw new Error((json as any)?.message || `API Error: ${res.statusText}`);
+    }
+
+    return { data: json };
+  },
+};
+
+// ================= AUTH =================
+
 export const authService = {
-  login: (data: any) => api.post('/auth/login', data),
-  register: (data: any) => api.post('/auth/register', data),
-  me: () => api.get('/auth/me'),
-  logout: (refreshToken?: string) => api.post('/auth/logout', { refreshToken }),
-  forgotPassword: (email: string) => api.post('/auth/forgot-password', { email }),
-  resetPassword: (data: any) => api.post('/auth/reset-password', data)
+  login: (credentials: any) => api.post("/auth/login", credentials),
+
+  register: (data: any) => api.post("/auth/register", data),
+
+  logout: (refreshToken?: string) => api.post("/auth/logout", { refreshToken }),
+
+  me: () => api.get("/auth/me"),
 };
 
-export const customerService = {
-  getAll: (params?: any) => api.get('/customers', { params }),
-  getById: (id: string) => api.get(`/customers/${id}`),
-  create: (data: any) => api.post('/customers', data),
-  update: (id: string, data: any) => api.put(`/customers/${id}`, data),
-  delete: (id: string) => api.delete(`/customers/${id}`),
-  importCsv: (rows: any[]) => api.post('/customers/import-csv', { rows })
-};
-
-export const leadService = {
-  getAll: (params?: any) => api.get('/leads', { params }),
-  create: (data: any) => api.post('/leads', data),
-  update: (id: string, data: any) => api.put(`/leads/${id}`, data),
-  updateStage: (id: string, stage: string) => api.put(`/leads/${id}/stage`, { stage }),
-  delete: (id: string) => api.delete(`/leads/${id}`)
-};
-
-export const dealService = {
-  getAll: (params?: any) => api.get('/deals', { params }),
-  create: (data: any) => api.post('/deals', data),
-  update: (id: string, data: any) => api.put(`/deals/${id}`, data),
-  delete: (id: string) => api.delete(`/deals/${id}`)
-};
-
-export const taskService = {
-  getAll: (params?: any) => api.get('/tasks', { params }),
-  create: (data: any) => api.post('/tasks', data),
-  update: (id: string, data: any) => api.put(`/tasks/${id}`, data),
-  delete: (id: string) => api.delete(`/tasks/${id}`)
-};
-
-export const calendarService = {
-  getEvents: (params?: { start?: string; end?: string }) => api.get('/calendar/events', { params }),
-  createMeeting: (data: any) => api.post('/calendar/meetings', data),
-  updateMeeting: (id: string, data: any) => api.put(`/calendar/meetings/${id}`, data),
-  deleteMeeting: (id: string) => api.delete(`/calendar/meetings/${id}`)
-};
-
-export const employeeService = {
-  getAll: (params?: any) => api.get('/employees', { params }),
-  getPerformance: () => api.get('/employees/performance'),
-  create: (data: any) => api.post('/employees', data),
-  update: (id: string, data: any) => api.put(`/employees/${id}`, data),
-  delete: (id: string) => api.delete(`/employees/${id}`)
-};
-
-export const dashboardService = {
-  getStats: () => api.get('/dashboard/stats'),
-  getCharts: () => api.get('/dashboard/charts'),
-  getActivities: () => api.get('/dashboard/activities')
-};
-
-export const reportService = {
-  getAnalytics: () => api.get('/reports/analytics'),
-  exportCsv: (type: 'customers' | 'leads') => api.get(`/reports/export-csv?type=${type}`, { responseType: 'blob' })
-};
+// ============== NOTIFICATIONS ==============
 
 export const notificationService = {
-  getAll: () => api.get('/notifications'),
-  markAsRead: (id: string) => api.put(`/notifications/${id}/read`),
-  markAllAsRead: () => api.put('/notifications/read-all'),
-  delete: (id: string) => api.delete(`/notifications/${id}`)
+  getAll: () => api.get("/notifications"),
+
+  markAsRead: (id: string) => api.put(`/notifications/${id}/read`, {}),
+
+  markAllAsRead: () => api.put("/notifications/read-all", {}),
+
+  delete: (id: string) => api.delete(`/notifications/${id}`),
 };
 
-export const profileService = {
-  getProfile: () => api.get('/profile'),
-  updateProfile: (data: any) => api.put('/profile', data),
-  changePassword: (data: any) => api.put('/profile/password', data)
+// ================= CUSTOMERS =================
+
+export const customerService = {
+  getAll: (params?: Record<string, any>) =>
+    api.get(`/customers${buildQuery(params)}`),
+
+  getById: (id: string) => api.get(`/customers/${id}`),
+
+  create: (data: any) => api.post("/customers", data),
+
+  update: (id: string, data: any) => api.put(`/customers/${id}`, data),
+
+  delete: (id: string) => api.delete(`/customers/${id}`),
+
+  importCsv: (data: any) => api.post("/customers/import-csv", data),
+};
+
+// ================= EMPLOYEES =================
+
+export const employeeService = {
+  getAll: () => api.get("/employees"),
+
+  getPerformance: () => api.get("/employees/performance"),
+};
+
+// ================= DASHBOARD =================
+
+export const dashboardService = {
+  getStats: () => api.get("/dashboard/stats"),
+
+  getCharts: () => api.get("/dashboard/charts"),
+
+  getActivities: () => api.get("/dashboard/activities"),
 };

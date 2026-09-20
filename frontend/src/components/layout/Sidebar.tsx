@@ -21,18 +21,67 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext.js";
 import { useNotifications } from "../../context/NotificationContext.js";
+import type { Role } from "../../types/index.js";
 
-const navItems = [
-  { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-  { to: "/customers", icon: Users, label: "Customers" },
-  { to: "/leads", icon: Target, label: "Leads Pipeline" },
-  { to: "/sales", icon: TrendingUp, label: "Sales & Deals" },
-  { to: "/tasks", icon: CheckSquare, label: "Tasks" },
-  { to: "/calendar", icon: Calendar, label: "Calendar" },
-  { to: "/employees", icon: UserCog, label: "Employees", adminOnly: true },
-  { to: "/reports", icon: BarChart3, label: "Reports" },
-  { to: "/notifications", icon: Bell, label: "Notifications" },
-];
+interface NavItem {
+  to: string;
+  icon: typeof LayoutDashboard;
+  label: string;
+}
+
+/**
+ * Every role gets a distinct sidebar: different item sets, and different
+ * labels for Sales Executives ("My X") to reflect that their views are
+ * scoped to their own work. Keep this in sync with the route table in
+ * App.tsx and with each page's own role-based data scoping.
+ */
+function getNavItemsForRole(role: Role | undefined): NavItem[] {
+  switch (role) {
+    case "ADMIN":
+      return [
+        { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
+        { to: "/customers", icon: Users, label: "Customers" },
+        { to: "/leads", icon: Target, label: "Leads Pipeline" },
+        { to: "/sales", icon: TrendingUp, label: "Sales & Deals" },
+        { to: "/tasks", icon: CheckSquare, label: "Tasks" },
+        { to: "/calendar", icon: Calendar, label: "Calendar" },
+        { to: "/employees", icon: UserCog, label: "Employees" },
+        { to: "/reports", icon: BarChart3, label: "Reports" },
+        { to: "/notifications", icon: Bell, label: "Notifications" },
+      ];
+    case "MANAGER":
+      return [
+        { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
+        { to: "/customers", icon: Users, label: "Customers" },
+        { to: "/leads", icon: Target, label: "Leads" },
+        { to: "/sales", icon: TrendingUp, label: "Sales" },
+        { to: "/tasks", icon: CheckSquare, label: "Tasks" },
+        { to: "/calendar", icon: Calendar, label: "Calendar" },
+        { to: "/employees", icon: UserCog, label: "Employees" },
+        { to: "/reports", icon: BarChart3, label: "Reports" },
+        { to: "/notifications", icon: Bell, label: "Notifications" },
+      ];
+    case "SALES_EXECUTIVE":
+      return [
+        { to: "/dashboard", icon: LayoutDashboard, label: "My Dashboard" },
+        { to: "/customers", icon: Users, label: "My Customers" },
+        { to: "/leads", icon: Target, label: "My Leads" },
+        { to: "/sales", icon: TrendingUp, label: "My Deals" },
+        { to: "/tasks", icon: CheckSquare, label: "My Tasks" },
+        { to: "/calendar", icon: Calendar, label: "Calendar" },
+        { to: "/notifications", icon: Bell, label: "Notifications" },
+      ];
+    case "VIEWER":
+      return [
+        { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
+        { to: "/customers", icon: Users, label: "Customers" },
+        { to: "/reports", icon: BarChart3, label: "Reports" },
+        { to: "/notifications", icon: Bell, label: "Notifications" },
+      ];
+    default:
+      return [];
+  }
+}
 
 interface SidebarProps {
   collapsed: boolean;
@@ -43,15 +92,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
   collapsed,
   setCollapsed,
 }) => {
-  const { user, logout, isAdmin, isManager } = useAuth();
+  const { user, logout, isAdmin } = useAuth();
   const { unreadCount } = useNotifications();
   const navigate = useNavigate();
   const [profileOpen, setProfileOpen] = useState(false);
 
-  const visibleItems = navItems.filter((item) => {
-    if (item.adminOnly) return isAdmin || isManager;
-    return true;
-  });
+  const visibleItems = getNavItemsForRole(user?.role);
 
   const handleLogout = async () => {
     await logout();
@@ -163,42 +209,45 @@ export const Sidebar: React.FC<SidebarProps> = ({
           })}
         </div>
 
-        {/* Divider */}
-        <div className="my-4 mx-4 border-t border-slate-800/60" />
-
-        {/* Settings */}
-        <div className="px-2 space-y-0.5">
-          <NavLink
-            to="/settings"
-            className={({ isActive }) => `
-              flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-150 group relative
-              ${isActive ? "bg-blue-600/15 text-blue-400 border border-blue-500/25" : "text-slate-400 hover:text-white hover:bg-slate-800/60"}
-            `}
-          >
-            {({ isActive }) => (
-              <>
-                <Settings className="w-[18px] h-[18px] shrink-0" />
-                <AnimatePresence>
-                  {!collapsed && (
-                    <motion.span
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className={`text-sm font-medium whitespace-nowrap ${isActive ? "text-blue-400" : ""}`}
-                    >
-                      Settings
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-                {collapsed && (
-                  <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-slate-800 text-slate-200 text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none border border-slate-700 shadow-xl z-50">
-                    Settings
-                  </div>
+        {/* Settings: company-wide settings are Admin-only (Manager, Sales
+            and Viewer sidebars never show this per the role spec). */}
+        {isAdmin && (
+          <>
+            <div className="my-4 mx-4 border-t border-slate-800/60" />
+            <div className="px-2 space-y-0.5">
+              <NavLink
+                to="/settings"
+                className={({ isActive }) => `
+                  flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-150 group relative
+                  ${isActive ? "bg-blue-600/15 text-blue-400 border border-blue-500/25" : "text-slate-400 hover:text-white hover:bg-slate-800/60"}
+                `}
+              >
+                {({ isActive }) => (
+                  <>
+                    <Settings className="w-[18px] h-[18px] shrink-0" />
+                    <AnimatePresence>
+                      {!collapsed && (
+                        <motion.span
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          className={`text-sm font-medium whitespace-nowrap ${isActive ? "text-blue-400" : ""}`}
+                        >
+                          Settings
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
+                    {collapsed && (
+                      <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-slate-800 text-slate-200 text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none border border-slate-700 shadow-xl z-50">
+                        Settings
+                      </div>
+                    )}
+                  </>
                 )}
-              </>
-            )}
-          </NavLink>
-        </div>
+              </NavLink>
+            </div>
+          </>
+        )}
       </nav>
 
       {/* User Profile Section */}
