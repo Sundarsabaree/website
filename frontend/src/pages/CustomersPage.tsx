@@ -50,7 +50,24 @@ const INDUSTRY_OPTIONS = [
   "General",
 ];
 
-const emptyForm = {
+type CustomerFormState = {
+  name: string;
+  email: string;
+  phone: string;
+  company: string;
+  industry: string;
+  budget: number;
+  interest: string;
+  address: string;
+  city: string;
+  state: string;
+  country: string;
+  status: CustomerStatus;
+  assignedToId: string;
+  notes: string;
+};
+
+const emptyForm: CustomerFormState = {
   name: "",
   email: "",
   phone: "",
@@ -62,13 +79,201 @@ const emptyForm = {
   city: "",
   state: "",
   country: "India",
-  status: "ACTIVE" as CustomerStatus,
+  status: "ACTIVE",
   assignedToId: "",
   notes: "",
 };
 
+/**
+ * IMPORTANT: This component is defined OUTSIDE CustomersPage on purpose.
+ * If it were declared inside CustomersPage's render body, React would treat
+ * it as a brand-new component type on every re-render (every keystroke),
+ * unmounting and remounting all these inputs — which is what was causing
+ * the "click again after every character" bug.
+ */
+interface CustomerFormFieldsProps {
+  form: CustomerFormState;
+  setForm: React.Dispatch<React.SetStateAction<CustomerFormState>>;
+  formError: string;
+  isAdmin: boolean;
+  isManager: boolean;
+  employees: User[];
+}
+
+const CustomerFormFields: React.FC<CustomerFormFieldsProps> = ({
+  form,
+  setForm,
+  formError,
+  isAdmin,
+  isManager,
+  employees,
+}) => (
+  <div className="space-y-4">
+    {formError && (
+      <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+        {formError}
+      </div>
+    )}
+    <div className="grid grid-cols-2 gap-4">
+      <div className="space-y-1.5">
+        <label className="block text-sm font-medium text-slate-300">
+          Full Name *
+        </label>
+        <input
+          value={form.name}
+          onChange={(e) => setForm({ ...form, name: e.target.value })}
+          placeholder="Acme Corp Contact"
+          className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+        />
+      </div>
+      <div className="space-y-1.5">
+        <label className="block text-sm font-medium text-slate-300">
+          Email *
+        </label>
+        <input
+          type="email"
+          value={form.email}
+          onChange={(e) => setForm({ ...form, email: e.target.value })}
+          placeholder="email@company.com"
+          className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+        />
+      </div>
+      <div className="space-y-1.5">
+        <label className="block text-sm font-medium text-slate-300">
+          Phone
+        </label>
+        <input
+          value={form.phone}
+          onChange={(e) => setForm({ ...form, phone: e.target.value })}
+          placeholder="+1 555 000 0000"
+          className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+        />
+      </div>
+      <div className="space-y-1.5">
+        <label className="block text-sm font-medium text-slate-300">
+          Company
+        </label>
+        <input
+          value={form.company}
+          onChange={(e) => setForm({ ...form, company: e.target.value })}
+          placeholder="Acme Corporation"
+          className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+        />
+      </div>
+      <div className="space-y-1.5">
+        <label className="block text-sm font-medium text-slate-300">
+          Industry
+        </label>
+        <select
+          value={form.industry}
+          onChange={(e) => setForm({ ...form, industry: e.target.value })}
+          className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+        >
+          <option value="">Select industry</option>
+          {INDUSTRY_OPTIONS.map((o) => (
+            <option key={o} value={o}>
+              {o}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="space-y-1.5">
+        <label className="block text-sm font-medium text-slate-300">
+          Budget (₹)
+        </label>
+        <input
+          type="number"
+          value={form.budget}
+          onChange={(e) => setForm({ ...form, budget: Number(e.target.value) })}
+          placeholder="50000"
+          className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+        />
+      </div>
+      <div className="col-span-2 space-y-1.5">
+        <label className="block text-sm font-medium text-slate-300">
+          Interest / Product Need
+        </label>
+        <input
+          value={form.interest}
+          onChange={(e) => setForm({ ...form, interest: e.target.value })}
+          placeholder="CRM Integration, Cloud Migration…"
+          className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+        />
+      </div>
+      <div className="space-y-1.5">
+        <label className="block text-sm font-medium text-slate-300">City</label>
+        <input
+          value={form.city}
+          onChange={(e) => setForm({ ...form, city: e.target.value })}
+          placeholder="Mumbai"
+          className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+        />
+      </div>
+      <div className="space-y-1.5">
+        <label className="block text-sm font-medium text-slate-300">
+          Country
+        </label>
+        <input
+          value={form.country}
+          onChange={(e) => setForm({ ...form, country: e.target.value })}
+          placeholder="India"
+          className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+        />
+      </div>
+      <div className="space-y-1.5">
+        <label className="block text-sm font-medium text-slate-300">
+          Status
+        </label>
+        <select
+          value={form.status}
+          onChange={(e) =>
+            setForm({ ...form, status: e.target.value as CustomerStatus })
+          }
+          className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+        >
+          <option value="ACTIVE">Active</option>
+          <option value="INACTIVE">Inactive</option>
+          <option value="PROSPECT">Prospect</option>
+        </select>
+      </div>
+      {(isAdmin || isManager) && (
+        <div className="space-y-1.5">
+          <label className="block text-sm font-medium text-slate-300">
+            Assigned To
+          </label>
+          <select
+            value={form.assignedToId}
+            onChange={(e) => setForm({ ...form, assignedToId: e.target.value })}
+            className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+          >
+            <option value="">Assign to rep…</option>
+            {employees.map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+      <div className="col-span-2 space-y-1.5">
+        <label className="block text-sm font-medium text-slate-300">
+          Notes
+        </label>
+        <textarea
+          rows={3}
+          value={form.notes}
+          onChange={(e) => setForm({ ...form, notes: e.target.value })}
+          placeholder="Internal notes about this customer…"
+          className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all resize-none"
+        />
+      </div>
+    </div>
+  </div>
+);
+
 export const CustomersPage: React.FC = () => {
   const { user, isAdmin, isManager } = useAuth();
+  const canWrite = true;
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [pagination, setPagination] = useState({
     total: 0,
@@ -91,7 +296,7 @@ export const CustomersPage: React.FC = () => {
   const [importModal, setImportModal] = useState(false);
   const [csvText, setCsvText] = useState("");
 
-  const [form, setForm] = useState({ ...emptyForm });
+  const [form, setForm] = useState<CustomerFormState>({ ...emptyForm });
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
 
@@ -152,9 +357,7 @@ export const CustomersPage: React.FC = () => {
       setForm({ ...emptyForm });
       fetchCustomers(1);
     } catch (err: any) {
-      setFormError(
-        err?.response?.data?.message || "Failed to create customer.",
-      );
+      setFormError(err?.message || "Failed to create customer.");
     } finally {
       setSaving(false);
     }
@@ -173,9 +376,7 @@ export const CustomersPage: React.FC = () => {
       setEditCustomer(null);
       fetchCustomers(pagination.page);
     } catch (err: any) {
-      setFormError(
-        err?.response?.data?.message || "Failed to update customer.",
-      );
+      setFormError(err?.message || "Failed to update customer.");
     } finally {
       setSaving(false);
     }
@@ -267,176 +468,6 @@ export const CustomersPage: React.FC = () => {
     setFormError("");
   };
 
-  const CustomerForm = () => (
-    <div className="space-y-4">
-      {formError && (
-        <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
-          {formError}
-        </div>
-      )}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-1.5">
-          <label className="block text-sm font-medium text-slate-300">
-            Full Name *
-          </label>
-          <input
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-            placeholder="Acme Corp Contact"
-            className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <label className="block text-sm font-medium text-slate-300">
-            Email *
-          </label>
-          <input
-            type="email"
-            value={form.email}
-            onChange={(e) => setForm({ ...form, email: e.target.value })}
-            placeholder="email@company.com"
-            className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <label className="block text-sm font-medium text-slate-300">
-            Phone
-          </label>
-          <input
-            value={form.phone}
-            onChange={(e) => setForm({ ...form, phone: e.target.value })}
-            placeholder="+1 555 000 0000"
-            className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <label className="block text-sm font-medium text-slate-300">
-            Company
-          </label>
-          <input
-            value={form.company}
-            onChange={(e) => setForm({ ...form, company: e.target.value })}
-            placeholder="Acme Corporation"
-            className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <label className="block text-sm font-medium text-slate-300">
-            Industry
-          </label>
-          <select
-            value={form.industry}
-            onChange={(e) => setForm({ ...form, industry: e.target.value })}
-            className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
-          >
-            <option value="">Select industry</option>
-            {INDUSTRY_OPTIONS.map((o) => (
-              <option key={o} value={o}>
-                {o}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="space-y-1.5">
-          <label className="block text-sm font-medium text-slate-300">
-            Budget (₹)
-          </label>
-          <input
-            type="number"
-            value={form.budget}
-            onChange={(e) =>
-              setForm({ ...form, budget: Number(e.target.value) })
-            }
-            placeholder="50000"
-            className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
-          />
-        </div>
-        <div className="col-span-2 space-y-1.5">
-          <label className="block text-sm font-medium text-slate-300">
-            Interest / Product Need
-          </label>
-          <input
-            value={form.interest}
-            onChange={(e) => setForm({ ...form, interest: e.target.value })}
-            placeholder="CRM Integration, Cloud Migration…"
-            className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <label className="block text-sm font-medium text-slate-300">
-            City
-          </label>
-          <input
-            value={form.city}
-            onChange={(e) => setForm({ ...form, city: e.target.value })}
-            placeholder="Mumbai"
-            className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <label className="block text-sm font-medium text-slate-300">
-            Country
-          </label>
-          <input
-            value={form.country}
-            onChange={(e) => setForm({ ...form, country: e.target.value })}
-            placeholder="India"
-            className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <label className="block text-sm font-medium text-slate-300">
-            Status
-          </label>
-          <select
-            value={form.status}
-            onChange={(e) =>
-              setForm({ ...form, status: e.target.value as CustomerStatus })
-            }
-            className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
-          >
-            <option value="ACTIVE">Active</option>
-            <option value="INACTIVE">Inactive</option>
-            <option value="PROSPECT">Prospect</option>
-          </select>
-        </div>
-        {(isAdmin || isManager) && (
-          <div className="space-y-1.5">
-            <label className="block text-sm font-medium text-slate-300">
-              Assigned To
-            </label>
-            <select
-              value={form.assignedToId}
-              onChange={(e) =>
-                setForm({ ...form, assignedToId: e.target.value })
-              }
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
-            >
-              <option value="">Assign to rep…</option>
-              {employees.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-        <div className="col-span-2 space-y-1.5">
-          <label className="block text-sm font-medium text-slate-300">
-            Notes
-          </label>
-          <textarea
-            rows={3}
-            value={form.notes}
-            onChange={(e) => setForm({ ...form, notes: e.target.value })}
-            placeholder="Internal notes about this customer…"
-            className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all resize-none"
-          />
-        </div>
-      </div>
-    </div>
-  );
-
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -458,25 +489,29 @@ export const CustomersPage: React.FC = () => {
           >
             Export
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setImportModal(true)}
-            leftIcon={<Upload className="w-3.5 h-3.5" />}
-          >
-            Import CSV
-          </Button>
-          <Button
-            size="sm"
-            onClick={() => {
-              setForm({ ...emptyForm });
-              setFormError("");
-              setAddModal(true);
-            }}
-            leftIcon={<Plus className="w-3.5 h-3.5" />}
-          >
-            Add Customer
-          </Button>
+          {canWrite && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setImportModal(true)}
+                leftIcon={<Upload className="w-3.5 h-3.5" />}
+              >
+                Import CSV
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => {
+                  setForm({ ...emptyForm });
+                  setFormError("");
+                  setAddModal(true);
+                }}
+                leftIcon={<Plus className="w-3.5 h-3.5" />}
+              >
+                Add Customer
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -710,7 +745,14 @@ export const CustomersPage: React.FC = () => {
           </>
         }
       >
-        <CustomerForm />
+        <CustomerFormFields
+          form={form}
+          setForm={setForm}
+          formError={formError}
+          isAdmin={isAdmin}
+          isManager={isManager}
+          employees={employees}
+        />
       </Modal>
 
       {/* Edit Modal */}
@@ -730,7 +772,14 @@ export const CustomersPage: React.FC = () => {
           </>
         }
       >
-        <CustomerForm />
+        <CustomerFormFields
+          form={form}
+          setForm={setForm}
+          formError={formError}
+          isAdmin={isAdmin}
+          isManager={isManager}
+          employees={employees}
+        />
       </Modal>
 
       {/* View Customer Modal */}

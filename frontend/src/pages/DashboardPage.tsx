@@ -10,6 +10,7 @@ import {
   TrendingUp,
   Activity,
   ArrowUpRight,
+  AlertTriangle,
 } from "lucide-react";
 import {
   AreaChart,
@@ -28,8 +29,13 @@ import {
 } from "recharts";
 import { StatCard } from "../components/ui/Card.js";
 import { dashboardService } from "../services/api.js";
-import { DashboardStats, ActivityItem } from "../types/index.js";
+import {
+  DashboardStats,
+  ActivityItem,
+  TeamPerformance,
+} from "../types/index.js";
 import { format, formatDistanceToNow } from "date-fns";
+import { useAuth } from "../context/AuthContext.js";
 
 const COLORS = [
   "#2563EB",
@@ -72,10 +78,13 @@ const activityIconMap: Record<string, { icon: string; color: string }> = {
 };
 
 export const DashboardPage: React.FC = () => {
+  const { user, isAdmin, isManager } = useAuth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [charts, setCharts] = useState<any>(null);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
+  const [teamPerformance, setTeamPerformance] = useState<TeamPerformance[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -88,14 +97,21 @@ export const DashboardPage: React.FC = () => {
         setStats(statsRes.data.data);
         setCharts(chartsRes.data.data);
         setActivities(activitiesRes.data.data);
+        if (isAdmin || isManager) {
+          const teamRes = await dashboardService.getTeamPerformance();
+          setTeamPerformance(teamRes.data.data || []);
+        }
       } catch (err) {
         console.error("Dashboard fetch error:", err);
+        setError(
+          "Dashboard data could not be loaded. Check the connection and retry.",
+        );
       } finally {
         setLoading(false);
       }
     };
     fetchAll();
-  }, []);
+  }, [isAdmin, isManager]);
 
   const formatCurrency = (val: number) => {
     if (val >= 100000) return `₹${(val / 100000).toFixed(1)}L`;
@@ -105,6 +121,21 @@ export const DashboardPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {error && (
+        <div className="flex items-center justify-between gap-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+          <span className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            {error}
+          </span>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="shrink-0 font-medium text-red-200 underline underline-offset-4 hover:text-white"
+          >
+            Retry
+          </button>
+        </div>
+      )}
       {/* Welcome Banner */}
       <div className="bg-gradient-to-r from-blue-600/20 to-cyan-600/10 border border-blue-500/20 rounded-2xl p-5">
         <div className="flex items-center justify-between">
@@ -136,7 +167,7 @@ export const DashboardPage: React.FC = () => {
           title="Total Customers"
           value={stats?.totalCustomers ?? "—"}
           icon={<Users className="w-5 h-5" />}
-          change="↑ 12% from last month"
+          change="Live database count"
           changeType="positive"
           loading={loading}
           gradient="from-blue-600/10 to-blue-500/5"
@@ -171,6 +202,81 @@ export const DashboardPage: React.FC = () => {
           gradient="from-purple-600/10 to-purple-500/5"
         />
       </div>
+
+      {(isAdmin || isManager) && teamPerformance.length > 0 && (
+        <section className="bg-slate-900 border border-slate-700/60 rounded-2xl p-6">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-5">
+            <div>
+              <h3 className="font-heading font-bold text-white">
+                {isAdmin ? "Organisation Team" : "My Team"}
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Live performance and activity from the current reporting
+                hierarchy.
+              </p>
+            </div>
+            <span className="text-xs text-slate-400">
+              {
+                teamPerformance.filter(
+                  (member) => member.role === "SALES_EXECUTIVE",
+                ).length
+              }{" "}
+              Sales Executives
+            </span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {teamPerformance
+              .filter((member) =>
+                isAdmin
+                  ? member.role === "MANAGER"
+                  : member.role === "SALES_EXECUTIVE" &&
+                    member.managerId === user?.id,
+              )
+              .map((member) => (
+                <div
+                  key={member.id}
+                  className="rounded-xl border border-slate-800 bg-slate-800/40 p-4"
+                >
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-white truncate">
+                        {member.name}
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        {member.role === "MANAGER"
+                          ? "Manager"
+                          : "Sales Executive"}
+                      </p>
+                    </div>
+                    <span className="text-xs text-cyan-300">
+                      {member.activityThisWeek} updates / 7d
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div>
+                      <span className="block text-slate-500">Tasks</span>
+                      <strong className="text-slate-200">
+                        {member.completedTasks}/{member.totalTasks}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="block text-slate-500">Leads</span>
+                      <strong className="text-slate-200">
+                        {member.totalLeads}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="block text-slate-500">Won</span>
+                      <strong className="text-emerald-300">
+                        {member.dealsWon}
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </section>
+      )}
 
       {/* Second row KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -226,7 +332,7 @@ export const DashboardPage: React.FC = () => {
             </div>
             <div className="flex items-center gap-1 text-emerald-400 text-xs font-medium">
               <ArrowUpRight className="w-3.5 h-3.5" />
-              <span>+18.4%</span>
+              <span>{stats ? `${stats.closedDeals} won` : "—"}</span>
             </div>
           </div>
           {loading ? (

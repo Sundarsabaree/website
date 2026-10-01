@@ -1,182 +1,302 @@
-import { Response } from 'express';
-import { z } from 'zod';
-import { prisma } from '../prisma.js';
-import { AuthenticatedRequest } from '../types/index.js';
-import { logActivity } from '../services/activity.service.js';
-import { LeadStage, Priority } from '@prisma/client';
+import { Response } from "express";
+import { z } from "zod";
+import {
+  LeadStage,
+  NotificationType,
+  Prisma,
+  Priority,
+  Role,
+} from "@prisma/client";
+import { prisma } from "../prisma.js";
+import { AuthenticatedRequest } from "../types/index.js";
+import { logActivity } from "../services/activity.service.js";
+import { createNotification } from "../services/notification.service.js";
+import {
+  assertRelatedInScope,
+  canAssignTo,
+  leadScope,
+} from "../services/scope.service.js";
+import { optionalDate, parseDate } from "../utils/validation.js";
 
-export const leadSchema = z.object({
-  title: z.string().min(2, 'Title is required'),
-  contactName: z.string().min(2, 'Contact name is required'),
-  email: z.string().email('Valid email is required'),
-  phone: z.string().optional(),
-  company: z.string().optional(),
-  value: z.coerce.number().min(0).default(0),
-  stage: z.nativeEnum(LeadStage).default(LeadStage.NEW),
-  priority: z.nativeEnum(Priority).default(Priority.MEDIUM),
-  notes: z.string().optional(),
-  followUpDate: z.string().optional().nullable(),
-  assignedToId: z.string().optional().nullable(),
-  customerId: z.string().optional().nullable()
-});
+/**
+ * Lead access: ADMIN = organisation, MANAGER = own + team's leads, SALES_EXECUTIVE = assigned leads.
+ * Lifecycle (existing enum): NEW -> CONTACTED -> QUALIFIED -> (PROPOSAL -> NEGOTIATION) -> WON ("Converted") / LOST.
+ */
 
-export async function getLeads(req: AuthenticatedRequest, res: Response): Promise<void> {
-  const { stage, priority, assignedToId, search } = req.query as Record<string, string>;
+const leadFields = {
+  title: z.string().trim().min(2, "Title is required").max(200),
+  contactName: z.string().trim().min(2, "Contact name is required").max(150),
+  email: z.string().trim().email("Valid email is required"),
+  phone: z.string().trim().max(30).optional(),
+  company: z.string().trim().max(150).optional(),
+  value: z.coerce.number().min(0, "Value cannot be negative").optional(),
+  stage: z.nativeEnum(LeadStage).optional(),
+  priority: z.nativeEnum(Priority).optional(),
+  notes: z.string().max(5000).optional(),
+  followUpDate: optionalDate,
+  assignedToId: z.string().min(1).nullable().optional(),
+  customerId: z.string().min(1).nullable().optional(),
+};
 
-  const where: any = {};
+export const leadSchema = z.object(leadFields);
+export const leadUpdateSchema = z.object(leadFields).partial();
+export const leadStageSchema = z.object({ stage: z.nativeEnum(LeadStage) });
 
-  if (req.user?.role === 'SALES_EXECUTIVE') {
-    where.assignedToId = req.user.userId;
-  } else if (assignedToId) {
-    where.assignedToId = assignedToId;
-  }
+const LEAD_INCLUDE = {
+  assignedTo: { select: { id: true, name: true, email: true, avatar: true } },
+  customer: { select: { id: true, name: true, company: true } },
+} satisfies Prisma.LeadInclude;
 
-  if (stage) {
-    where.stage = stage as LeadStage;
-  }
+export async function getLeads(
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> {
+  const actor = req.user!;
+  const { stage, priority, assignedToId, customerId, search } =
+    req.query as Record<string, string | undefined>;
 
-  if (priority) {
-    where.priority = priority as Priority;
-  }
-
-  if (search) {
+  const and: Prisma.LeadWhereInput[] = [await leadScope(actor)];
+  if (stage && (Object.values(LeadStage) as string[]).includes(stage))
+    and.push({ stage: stage as LeadStage });
+  if (priority && (Object.values(Priority) as string[]).includes(priority))
+    and.push({ priority: priority as Priority });
+  if (assignedToId) and.push({ assignedToId });
+  if (customerId) and.push({ customerId });
+  if (search?.trim()) {
     const s = search.trim();
-    where.OR = [
-      { title: { contains: s, mode: 'insensitive' } },
-      { contactName: { contains: s, mode: 'insensitive' } },
-      { company: { contains: s, mode: 'insensitive' } },
-      { email: { contains: s, mode: 'insensitive' } }
-    ];
+    and.push({
+      OR: [
+        { title: { contains: s, mode: "insensitive" } },
+        { contactName: { contains: s, mode: "insensitive" } },
+        { company: { contains: s, mode: "insensitive" } },
+        { email: { contains: s, mode: "insensitive" } },
+      ],
+    });
   }
 
   const leads = await prisma.lead.findMany({
-    where,
-    orderBy: { updatedAt: 'desc' },
-    include: {
-      assignedTo: {
-        select: { id: true, name: true, email: true, avatar: true }
-      },
-      customer: {
-        select: { id: true, name: true, company: true }
-      }
-    }
+    where: { AND: and },
+    orderBy: { updatedAt: "desc" },
+    take: 500,
+    include: LEAD_INCLUDE,
   });
 
   res.json({ success: true, data: leads });
 }
 
-export async function createLead(req: AuthenticatedRequest, res: Response): Promise<void> {
-  const data = req.body;
-  const assignedToId = data.assignedToId || req.user?.userId;
+export async function createLead(
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> {
+  const actor = req.user!;
+  const {
+    assignedToId: requestedAssignee,
+    followUpDate,
+    customerId,
+    ...rest
+  } = req.body as z.infer<typeof leadSchema>;
+
+  const assignedToId = requestedAssignee || actor.userId;
+  if (
+    assignedToId !== actor.userId &&
+    !(await canAssignTo(actor, assignedToId))
+  ) {
+    res.status(403).json({
+      success: false,
+      message: "You cannot assign a lead to that user.",
+    });
+    return;
+  }
+  const relatedError = await assertRelatedInScope(actor, { customerId });
+  if (relatedError) {
+    res.status(400).json({ success: false, message: relatedError });
+    return;
+  }
 
   const lead = await prisma.lead.create({
     data: {
-      ...data,
-      followUpDate: data.followUpDate ? new Date(data.followUpDate) : null,
-      assignedToId
+      ...rest,
+      followUpDate: parseDate(followUpDate) ?? null,
+      customerId: customerId || null,
+      organizationId: actor.organizationId,
+      assignedToId,
     },
-    include: {
-      assignedTo: { select: { id: true, name: true, email: true } },
-      customer: { select: { id: true, name: true } }
-    }
+    include: LEAD_INCLUDE,
   });
 
   await logActivity({
-    userId: req.user?.userId,
-    action: 'LEAD_CREATED',
-    entityType: 'Lead',
+    userId: actor.userId,
+    organizationId: actor.organizationId,
+    action: "LEAD_CREATED",
+    entityType: "Lead",
     entityId: lead.id,
-    details: `Created lead "${lead.title}" with value ₹${lead.value}`
+    details: `Created lead "${lead.title}" with value ₹${lead.value}${assignedToId !== actor.userId ? ` assigned to ${lead.assignedTo?.name}` : ""}`,
   });
+
+  if (assignedToId !== actor.userId) {
+    await createNotification({
+      userId: assignedToId,
+      title: "New lead assigned",
+      message: `${actor.name} assigned you the lead "${lead.title}".`,
+      type: NotificationType.SYSTEM,
+      link: "/leads",
+    });
+  }
 
   res.status(201).json({ success: true, data: lead });
 }
 
-export async function updateLead(req: AuthenticatedRequest, res: Response): Promise<void> {
+export async function updateLead(
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> {
+  const actor = req.user!;
   const id = req.params.id as string;
-  const data = req.body;
+  const { assignedToId, followUpDate, customerId, ...rest } =
+    req.body as z.infer<typeof leadUpdateSchema>;
 
-  const existing = await prisma.lead.findUnique({ where: { id } });
+  const existing = await prisma.lead.findFirst({
+    where: { id, ...(await leadScope(actor)) },
+  });
   if (!existing) {
-    res.status(404).json({ success: false, message: 'Lead not found' });
+    res.status(404).json({ success: false, message: "Lead not found" });
     return;
   }
 
+  const reassigning =
+    assignedToId !== undefined && assignedToId !== existing.assignedToId;
+  if (reassigning) {
+    if (assignedToId === null) {
+      if (actor.role === Role.SALES_EXECUTIVE) {
+        res
+          .status(403)
+          .json({ success: false, message: "You cannot unassign a lead." });
+        return;
+      }
+    } else if (!(await canAssignTo(actor, assignedToId))) {
+      res.status(403).json({
+        success: false,
+        message: "You cannot assign a lead to that user.",
+      });
+      return;
+    }
+  }
+  if (customerId) {
+    const relatedError = await assertRelatedInScope(actor, { customerId });
+    if (relatedError) {
+      res.status(400).json({ success: false, message: relatedError });
+      return;
+    }
+  }
+
   const updated = await prisma.lead.update({
-    where: { id },
+    where: { id: existing.id },
     data: {
-      ...data,
-      followUpDate: data.followUpDate !== undefined ? (data.followUpDate ? new Date(data.followUpDate) : null) : existing.followUpDate
+      ...rest,
+      ...(followUpDate !== undefined
+        ? { followUpDate: parseDate(followUpDate) }
+        : {}),
+      ...(customerId !== undefined ? { customerId } : {}),
+      ...(reassigning ? { assignedToId } : {}),
     },
-    include: {
-      assignedTo: { select: { id: true, name: true, email: true } },
-      customer: { select: { id: true, name: true } }
-    }
+    include: LEAD_INCLUDE,
   });
 
+  const stageChanged =
+    rest.stage !== undefined && rest.stage !== existing.stage;
   await logActivity({
-    userId: req.user?.userId,
-    action: 'LEAD_UPDATED',
-    entityType: 'Lead',
+    userId: actor.userId,
+    organizationId: actor.organizationId,
+    action: reassigning
+      ? "LEAD_REASSIGNED"
+      : stageChanged
+        ? "LEAD_STAGE_CHANGED"
+        : "LEAD_UPDATED",
+    entityType: "Lead",
     entityId: updated.id,
-    details: `Updated lead "${updated.title}"`
+    details: reassigning
+      ? `Lead "${updated.title}" ${existing.assignedToId ? "reassigned" : "assigned"} to ${updated.assignedTo?.name ?? "nobody"}`
+      : stageChanged
+        ? `Moved lead "${updated.title}" from ${existing.stage} to ${updated.stage}`
+        : `Updated lead "${updated.title}"`,
   });
+
+  if (reassigning && assignedToId && assignedToId !== actor.userId) {
+    await createNotification({
+      userId: assignedToId,
+      title: existing.assignedToId
+        ? "Lead reassigned to you"
+        : "New lead assigned",
+      message: `${actor.name} assigned you the lead "${updated.title}".`,
+      type: NotificationType.SYSTEM,
+      link: "/leads",
+    });
+  }
 
   res.json({ success: true, data: updated });
 }
 
-export async function updateLeadStage(req: AuthenticatedRequest, res: Response): Promise<void> {
+export async function updateLeadStage(
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> {
+  const actor = req.user!;
   const id = req.params.id as string;
-  const { stage } = req.body;
+  const { stage } = req.body as z.infer<typeof leadStageSchema>;
 
-  if (!Object.values(LeadStage).includes(stage)) {
-    res.status(400).json({ success: false, message: 'Invalid lead stage' });
-    return;
-  }
-
-  const existing = await prisma.lead.findUnique({ where: { id } });
+  const existing = await prisma.lead.findFirst({
+    where: { id, ...(await leadScope(actor)) },
+  });
   if (!existing) {
-    res.status(404).json({ success: false, message: 'Lead not found' });
+    res.status(404).json({ success: false, message: "Lead not found" });
     return;
   }
 
   const updated = await prisma.lead.update({
-    where: { id },
-    data: { stage: stage as LeadStage },
-    include: {
-      assignedTo: { select: { id: true, name: true, email: true } }
-    }
+    where: { id: existing.id },
+    data: { stage },
+    include: LEAD_INCLUDE,
   });
 
-  await logActivity({
-    userId: req.user?.userId,
-    action: 'LEAD_STAGE_CHANGED',
-    entityType: 'Lead',
-    entityId: updated.id,
-    details: `Moved lead "${updated.title}" from ${existing.stage} to ${stage}`
-  });
+  if (existing.stage !== stage) {
+    await logActivity({
+      userId: actor.userId,
+      organizationId: actor.organizationId,
+      action: "LEAD_STAGE_CHANGED",
+      entityType: "Lead",
+      entityId: updated.id,
+      details: `Moved lead "${updated.title}" from ${existing.stage} to ${stage}`,
+    });
+  }
 
   res.json({ success: true, data: updated });
 }
 
-export async function deleteLead(req: AuthenticatedRequest, res: Response): Promise<void> {
+export async function deleteLead(
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> {
+  const actor = req.user!;
   const id = req.params.id as string;
 
-  const existing = await prisma.lead.findUnique({ where: { id } });
+  const existing = await prisma.lead.findFirst({
+    where: { id, ...(await leadScope(actor)) },
+  });
   if (!existing) {
-    res.status(404).json({ success: false, message: 'Lead not found' });
+    res.status(404).json({ success: false, message: "Lead not found" });
     return;
   }
 
-  await prisma.lead.delete({ where: { id } });
+  await prisma.lead.delete({ where: { id: existing.id } });
 
   await logActivity({
-    userId: req.user?.userId,
-    action: 'LEAD_DELETED',
-    entityType: 'Lead',
+    userId: actor.userId,
+    organizationId: actor.organizationId,
+    action: "LEAD_DELETED",
+    entityType: "Lead",
     entityId: id,
-    details: `Deleted lead "${existing.title}"`
+    details: `Deleted lead "${existing.title}"`,
   });
 
-  res.json({ success: true, message: 'Lead deleted successfully' });
+  res.json({ success: true, message: "Lead deleted successfully" });
 }

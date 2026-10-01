@@ -25,10 +25,7 @@ export const LoginPage: React.FC = () => {
       await login(form);
       navigate("/dashboard");
     } catch (err: any) {
-      setError(
-        err?.response?.data?.message ||
-          "Login failed. Please check your credentials.",
-      );
+      setError(err?.message || "Login failed. Please check your credentials.");
     } finally {
       setLoading(false);
     }
@@ -173,8 +170,8 @@ export const LoginPage: React.FC = () => {
                 },
                 {
                   label: "Sales",
-                  email: "sales1@crm.com",
-                  password: "pass101",
+                  email: "sales@crm.com",
+                  password: "Sales@123",
                   color:
                     "text-cyan-400 border-cyan-500/30 hover:bg-cyan-500/10",
                 },

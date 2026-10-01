@@ -6,10 +6,16 @@ import {
   Sun,
   Moon,
   ChevronDown,
-  User,
+  User as UserIcon,
   Settings,
   LogOut,
   X,
+  Plus,
+  Users,
+  Target,
+  TrendingUp,
+  CheckSquare,
+  Calendar,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../../context/AuthContext.js";
@@ -24,7 +30,7 @@ const pageTitles: Record<string, string> = {
   "/sales": "Sales & Deals",
   "/tasks": "Task Management",
   "/calendar": "Calendar",
-  "/employees": "Employee Management",
+  "/employees": "Employees",
   "/reports": "Reports & Analytics",
   "/notifications": "Notifications",
   "/settings": "Settings",
@@ -32,7 +38,7 @@ const pageTitles: Record<string, string> = {
 };
 
 export const Topbar: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, isAdmin, isManager } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { notifications, unreadCount, markAsRead, markAllAsRead } =
     useNotifications();
@@ -41,11 +47,12 @@ export const Topbar: React.FC = () => {
 
   const [notifOpen, setNotifOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
+  const [quickCreateOpen, setQuickCreateOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
   const notifRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
+  const quickCreateRef = useRef<HTMLDivElement>(null);
 
   const pageTitle = pageTitles[location.pathname] || "Smart CRM";
 
@@ -61,6 +68,12 @@ export const Topbar: React.FC = () => {
       ) {
         setProfileOpen(false);
       }
+      if (
+        quickCreateRef.current &&
+        !quickCreateRef.current.contains(e.target as Node)
+      ) {
+        setQuickCreateOpen(false);
+      }
     };
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
@@ -74,69 +87,128 @@ export const Topbar: React.FC = () => {
     SYSTEM: "🔔",
   };
 
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      navigate(`/customers?search=${encodeURIComponent(searchQuery.trim())}`);
+      setSearchQuery("");
+    }
+  };
+
   return (
-    <header className="h-16 glass-nav flex items-center px-6 gap-4 sticky top-0 z-10 shrink-0">
-      {/* Page Title */}
-      <div className="flex-1">
-        <h1 className="text-lg font-heading font-bold text-white">
+    <header className="h-16 glass-nav flex items-center px-4 sm:px-6 gap-3 sticky top-0 z-20 shrink-0 border-b border-slate-800/80">
+      {/* Page Title & Breadcrumb */}
+      <div className="flex-1 min-w-0 pr-2">
+        <h1 className="text-base sm:text-lg font-heading font-bold text-white truncate">
           {pageTitle}
         </h1>
-        <p className="text-xs text-slate-500 hidden sm:block">
+        <p className="text-[11px] text-slate-500 hidden sm:block">
           {format(new Date(), "EEEE, MMMM d, yyyy")}
         </p>
       </div>
 
-      {/* Search */}
-      <div className="relative">
+      {/* Prominent Global Search Bar */}
+      <form
+        onSubmit={handleSearch}
+        className="relative hidden md:block w-72 lg:w-96"
+      >
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+        <input
+          type="text"
+          placeholder="Search CRM (Customers, leads, deals)..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full bg-slate-900/90 border border-slate-700/80 hover:border-slate-600 focus:border-blue-500 rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all shadow-inner"
+        />
+        {searchQuery && (
+          <button
+            type="button"
+            onClick={() => setSearchQuery("")}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </form>
+
+      {/* Quick Create Button */}
+      <div className="relative" ref={quickCreateRef}>
+        <button
+          onClick={() => {
+            setQuickCreateOpen(!quickCreateOpen);
+            setNotifOpen(false);
+            setProfileOpen(false);
+          }}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-md shadow-blue-600/20 transition-all"
+          title="Quick Create"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">New</span>
+        </button>
+
         <AnimatePresence>
-          {searchOpen ? (
+          {quickCreateOpen && (
             <motion.div
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 240, opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              className="flex items-center gap-2 bg-slate-800/80 border border-slate-700 rounded-xl px-3 py-2 overflow-hidden"
+              initial={{ opacity: 0, y: 8, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.96 }}
+              transition={{ duration: 0.15 }}
+              className="absolute right-0 top-full mt-2 w-48 glass-dropdown rounded-2xl overflow-hidden z-50 p-1.5"
             >
-              <Search className="w-4 h-4 text-slate-400 shrink-0" />
-              <input
-                autoFocus
-                type="text"
-                placeholder="Search..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="bg-transparent text-sm text-slate-100 placeholder-slate-500 outline-none w-full"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && searchQuery.trim()) {
-                    navigate(
-                      `/customers?search=${encodeURIComponent(searchQuery)}`,
-                    );
-                    setSearchOpen(false);
-                    setSearchQuery("");
-                  }
-                  if (e.key === "Escape") {
-                    setSearchOpen(false);
-                    setSearchQuery("");
-                  }
-                }}
-              />
+              <div className="px-3 py-1.5 border-b border-slate-800 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                Quick Create
+              </div>
               <button
                 onClick={() => {
-                  setSearchOpen(false);
-                  setSearchQuery("");
+                  navigate("/customers");
+                  setQuickCreateOpen(false);
                 }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-slate-300 hover:text-white hover:bg-slate-800 transition-all"
               >
-                <X className="w-3.5 h-3.5 text-slate-500 hover:text-white" />
+                <Users className="w-4 h-4 text-blue-400" />
+                New Customer
+              </button>
+              <button
+                onClick={() => {
+                  navigate("/leads");
+                  setQuickCreateOpen(false);
+                }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-slate-300 hover:text-white hover:bg-slate-800 transition-all"
+              >
+                <Target className="w-4 h-4 text-cyan-400" />
+                New Lead
+              </button>
+              <button
+                onClick={() => {
+                  navigate("/sales");
+                  setQuickCreateOpen(false);
+                }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-slate-300 hover:text-white hover:bg-slate-800 transition-all"
+              >
+                <TrendingUp className="w-4 h-4 text-emerald-400" />
+                New Deal
+              </button>
+              <button
+                onClick={() => {
+                  navigate("/tasks");
+                  setQuickCreateOpen(false);
+                }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-slate-300 hover:text-white hover:bg-slate-800 transition-all"
+              >
+                <CheckSquare className="w-4 h-4 text-purple-400" />
+                New Task
+              </button>
+              <button
+                onClick={() => {
+                  navigate("/calendar");
+                  setQuickCreateOpen(false);
+                }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-slate-300 hover:text-white hover:bg-slate-800 transition-all"
+              >
+                <Calendar className="w-4 h-4 text-amber-400" />
+                Schedule Meeting
               </button>
             </motion.div>
-          ) : (
-            <motion.button
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setSearchOpen(true)}
-              className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all"
-            >
-              <Search className="w-4.5 h-4.5 w-[18px] h-[18px]" />
-            </motion.button>
           )}
         </AnimatePresence>
       </div>
@@ -154,18 +226,19 @@ export const Topbar: React.FC = () => {
         )}
       </button>
 
-      {/* Notifications */}
+      {/* Notifications dropdown */}
       <div className="relative" ref={notifRef}>
         <button
           onClick={() => {
             setNotifOpen(!notifOpen);
             setProfileOpen(false);
+            setQuickCreateOpen(false);
           }}
           className="relative p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all"
         >
           <Bell className="w-[18px] h-[18px]" />
           {unreadCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 shadow-lg">
+            <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 shadow-lg animate-pulse">
               {unreadCount > 9 ? "9+" : unreadCount}
             </span>
           )}
@@ -178,7 +251,7 @@ export const Topbar: React.FC = () => {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 8, scale: 0.96 }}
               transition={{ duration: 0.15 }}
-              className="absolute right-0 top-full mt-2 w-80 glass-dropdown rounded-2xl overflow-hidden z-50"
+              className="absolute right-0 top-full mt-2 w-80 glass-dropdown rounded-2xl overflow-hidden z-50 shadow-2xl"
             >
               <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700/60">
                 <h3 className="font-semibold text-sm text-white">
@@ -193,16 +266,16 @@ export const Topbar: React.FC = () => {
                   </button>
                 )}
               </div>
-              <div className="max-h-72 overflow-y-auto">
+              <div className="max-h-72 overflow-y-auto divide-y divide-slate-800/60">
                 {notifications.length === 0 ? (
-                  <div className="text-center py-8 text-slate-500 text-sm">
+                  <div className="text-center py-8 text-slate-500 text-xs">
                     No notifications
                   </div>
                 ) : (
                   notifications.slice(0, 8).map((n) => (
                     <div
                       key={n.id}
-                      className={`px-4 py-3 border-b border-slate-800/50 hover:bg-slate-800/40 cursor-pointer transition-colors ${!n.isRead ? "bg-blue-500/5" : ""}`}
+                      className={`px-4 py-3 hover:bg-slate-800/40 cursor-pointer transition-colors ${!n.isRead ? "bg-blue-500/5" : ""}`}
                       onClick={() => {
                         markAsRead(n.id);
                         if (n.link) navigate(n.link);
@@ -215,11 +288,11 @@ export const Topbar: React.FC = () => {
                         </span>
                         <div className="flex-1 min-w-0">
                           <p
-                            className={`text-sm font-medium truncate ${n.isRead ? "text-slate-400" : "text-slate-200"}`}
+                            className={`text-xs font-semibold truncate ${n.isRead ? "text-slate-400" : "text-slate-200"}`}
                           >
                             {n.title}
                           </p>
-                          <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">
+                          <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2">
                             {n.message}
                           </p>
                         </div>
@@ -231,13 +304,13 @@ export const Topbar: React.FC = () => {
                   ))
                 )}
               </div>
-              <div className="p-3 border-t border-slate-700/60">
+              <div className="p-2.5 border-t border-slate-700/60 bg-slate-950/40 text-center">
                 <button
                   onClick={() => {
                     navigate("/notifications");
                     setNotifOpen(false);
                   }}
-                  className="w-full py-2 text-xs text-center text-blue-400 hover:text-blue-300 transition-colors"
+                  className="text-xs text-blue-400 hover:text-blue-300 font-medium transition-colors"
                 >
                   View all notifications →
                 </button>
@@ -247,16 +320,17 @@ export const Topbar: React.FC = () => {
         </AnimatePresence>
       </div>
 
-      {/* Profile Dropdown */}
+      {/* User Profile Card */}
       <div className="relative" ref={profileRef}>
         <button
           onClick={() => {
             setProfileOpen(!profileOpen);
             setNotifOpen(false);
+            setQuickCreateOpen(false);
           }}
-          className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-xl hover:bg-slate-800 transition-all group"
+          className="flex items-center gap-2.5 pl-1.5 pr-2.5 py-1 rounded-xl hover:bg-slate-800/80 transition-all group"
         >
-          <div className="w-8 h-8 rounded-full overflow-hidden bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center shrink-0">
+          <div className="w-8 h-8 rounded-xl overflow-hidden bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center shrink-0 shadow-sm">
             {user?.avatar ? (
               <img
                 src={user.avatar}
@@ -267,21 +341,21 @@ export const Topbar: React.FC = () => {
                 }}
               />
             ) : (
-              <span className="text-white text-sm font-bold">
+              <span className="text-white text-xs font-bold">
                 {user?.name?.[0]?.toUpperCase()}
               </span>
             )}
           </div>
-          <div className="hidden sm:block text-left">
-            <p className="text-sm font-medium text-slate-200 leading-none">
-              {user?.name?.split(" ")[0]}
+          <div className="hidden sm:block text-left min-w-0">
+            <p className="text-xs font-semibold text-slate-200 truncate max-w-[120px]">
+              {user?.name}
             </p>
-            <p className="text-[11px] text-slate-500 capitalize mt-0.5">
-              {user?.role?.toLowerCase().replace("_", " ")}
+            <p className="text-[10px] text-blue-400 uppercase tracking-wider font-semibold">
+              {user?.role?.replace("_", " ")}
             </p>
           </div>
           <ChevronDown
-            className={`w-4 h-4 text-slate-400 transition-transform ${profileOpen ? "rotate-180" : ""}`}
+            className={`w-3.5 h-3.5 text-slate-400 transition-transform ${profileOpen ? "rotate-180" : ""}`}
           />
         </button>
 
@@ -292,21 +366,28 @@ export const Topbar: React.FC = () => {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 8, scale: 0.96 }}
               transition={{ duration: 0.15 }}
-              className="absolute right-0 top-full mt-2 w-52 glass-dropdown rounded-2xl overflow-hidden z-50"
+              className="absolute right-0 top-full mt-2 w-56 glass-dropdown rounded-2xl overflow-hidden z-50 shadow-2xl p-1"
             >
-              <div className="px-4 py-3 border-b border-slate-700/60">
-                <p className="text-sm font-semibold text-white">{user?.name}</p>
-                <p className="text-xs text-slate-500 truncate">{user?.email}</p>
+              <div className="px-3.5 py-3 border-b border-slate-800">
+                <p className="text-xs font-semibold text-white truncate">
+                  {user?.name}
+                </p>
+                <p className="text-[11px] text-slate-400 truncate">
+                  {user?.email}
+                </p>
+                <span className="inline-block mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                  {user?.role?.replace("_", " ")}
+                </span>
               </div>
-              <div className="p-1.5">
+              <div className="py-1">
                 <button
                   onClick={() => {
                     navigate("/profile");
                     setProfileOpen(false);
                   }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-700/60 transition-all text-sm"
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-slate-300 hover:text-white hover:bg-slate-800 transition-all"
                 >
-                  <User className="w-4 h-4" />
+                  <UserIcon className="w-4 h-4 text-slate-400" />
                   My Profile
                 </button>
                 <button
@@ -314,15 +395,15 @@ export const Topbar: React.FC = () => {
                     navigate("/settings");
                     setProfileOpen(false);
                   }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-700/60 transition-all text-sm"
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-slate-300 hover:text-white hover:bg-slate-800 transition-all"
                 >
-                  <Settings className="w-4 h-4" />
+                  <Settings className="w-4 h-4 text-slate-400" />
                   Settings
                 </button>
-                <div className="border-t border-slate-700/60 my-1" />
+                <div className="border-t border-slate-800 my-1" />
                 <button
                   onClick={logout}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all text-sm"
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all font-medium"
                 >
                   <LogOut className="w-4 h-4" />
                   Sign Out
@@ -335,3 +416,5 @@ export const Topbar: React.FC = () => {
     </header>
   );
 };
+
+export default Topbar;

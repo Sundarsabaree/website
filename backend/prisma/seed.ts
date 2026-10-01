@@ -4,22 +4,15 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 /**
- * Fresh-start seed (Phase 1 of the production transformation).
+ * Development seed.
  *
- * This intentionally creates NOTHING but the authentication/role system
- * and a single Admin account. There are no demo customers, leads, deals,
- * tasks, meetings, notifications or activities, and no extra Manager/
- * Sales/Viewer users — per the spec, "after login, the company starts
- * empty. The first Admin builds the company from scratch."
- *
- * Change ADMIN_EMAIL / ADMIN_PASSWORD below (or set them as env vars)
- * before running this against a real environment, then rotate the
- * password on first login.
+ * This creates a single demo organisation and three valid team accounts
+ * (ADMIN, MANAGER, SALES_EXECUTIVE) so the SaaS workflows can be exercised
+ * immediately after `npm run prisma:seed`.
  */
 async function main() {
-  console.log("🌱 Resetting to a clean, empty company...");
+  console.log("🌱 Creating a demo CRM organisation...");
 
-  // Clean existing tables in reverse dependency order
   await prisma.activity.deleteMany();
   await prisma.notification.deleteMany();
   await prisma.meeting.deleteMany();
@@ -29,28 +22,70 @@ async function main() {
   await prisma.customer.deleteMany();
   await prisma.refreshToken.deleteMany();
   await prisma.user.deleteMany();
+  await prisma.organization.deleteMany();
 
-  // Create the first Admin account. This is the ONLY user in a fresh
-  // company — everyone else (Managers, Sales Executives, Viewers) is
-  // created by this Admin from the Employees page after logging in.
+  const organization = await prisma.organization.create({
+    data: { name: "Northstar Labs" },
+  });
+
   const adminEmail = process.env.SEED_ADMIN_EMAIL || "admin@crm.com";
-  const adminPassword = process.env.SEED_ADMIN_PASSWORD || "Admin@123";
-  const adminHash = await bcrypt.hash(adminPassword, 10);
+  const managerEmail = process.env.SEED_MANAGER_EMAIL || "manager@crm.com";
+  const salesEmail = process.env.SEED_SALES_EMAIL || "sales@crm.com";
 
-  await prisma.user.create({
+  const adminUser = await prisma.user.create({
     data: {
-      name: "Admin",
+      name: "Admin User",
       email: adminEmail,
-      passwordHash: adminHash,
+      passwordHash: await bcrypt.hash(
+        process.env.SEED_ADMIN_PASSWORD || "Admin@123",
+        10,
+      ),
       role: Role.ADMIN,
       department: "Executive Leadership",
       status: "ACTIVE",
+      organizationId: organization.id,
     },
   });
 
-  console.log("✅ Company reset to a clean slate.");
-  console.log(`   Admin login: ${adminEmail} / ${adminPassword}`);
-  console.log("   ⚠️  Change this password immediately after first login.");
+  const managerUser = await prisma.user.create({
+    data: {
+      name: "Manager User",
+      email: managerEmail,
+      passwordHash: await bcrypt.hash(
+        process.env.SEED_MANAGER_PASSWORD || "Manager@123",
+        10,
+      ),
+      role: Role.MANAGER,
+      department: "Sales",
+      status: "ACTIVE",
+      organizationId: organization.id,
+    },
+  });
+
+  const salesUser = await prisma.user.create({
+    data: {
+      name: "Sales Executive",
+      email: salesEmail,
+      passwordHash: await bcrypt.hash(
+        process.env.SEED_SALES_PASSWORD || "Sales@123",
+        10,
+      ),
+      role: Role.SALES_EXECUTIVE,
+      department: "Sales",
+      status: "ACTIVE",
+      organizationId: organization.id,
+      managerId: managerUser.id,
+    },
+  });
+
+  console.log("✅ Demo organisation created with active users:");
+  console.log(`   ${Role.ADMIN.padEnd(16)} ${adminUser.email} / Admin@123`);
+  console.log(
+    `   ${Role.MANAGER.padEnd(16)} ${managerUser.email} / Manager@123`,
+  );
+  console.log(
+    `   ${Role.SALES_EXECUTIVE.padEnd(16)} ${salesUser.email} / Sales@123`,
+  );
 }
 
 main()

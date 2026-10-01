@@ -1,7 +1,7 @@
 // Shared frontend types. These mirror backend/prisma/schema.prisma —
 // keep both in sync when the schema changes.
 
-export type Role = "ADMIN" | "MANAGER" | "SALES_EXECUTIVE" | "VIEWER";
+export type Role = "ADMIN" | "MANAGER" | "SALES_EXECUTIVE";
 
 export type CustomerStatus = "ACTIVE" | "INACTIVE" | "PROSPECT";
 
@@ -17,6 +17,7 @@ export type LeadStage =
 export type DealStage =
   | "DISCOVERY"
   | "QUALIFICATION"
+  | "NEEDS_ANALYSIS"
   | "PROPOSAL"
   | "NEGOTIATION"
   | "CLOSED_WON"
@@ -36,10 +37,8 @@ export type NotificationType =
   | "DEAL"
   | "MEETING"
   | "SYSTEM";
-
 /** Minimal user reference embedded in other records (e.g. Customer.assignedTo). */
 export interface UserRef {
-  id: string;
   name: string;
   email?: string;
   avatar?: string | null;
@@ -54,8 +53,16 @@ export interface User {
   phone?: string | null;
   department?: string | null;
   status?: string;
+  managerId?: string | null;
+  manager?: UserRef | null;
   createdAt?: string;
   updatedAt?: string;
+  _count?: {
+    assignedCustomers?: number;
+    assignedLeads?: number;
+    assignedDeals?: number;
+    assignedTasks?: number;
+  };
 }
 
 export interface Customer {
@@ -129,7 +136,7 @@ export interface Task {
   createdById?: string | null;
   createdBy?: UserRef | null;
   customerId?: string | null;
-  customer?: { id: string; name: string } | null;
+  customer?: { id: string; name: string; company?: string | null } | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -184,6 +191,29 @@ export interface DashboardStats {
   meetingsToday: number;
 }
 
+export interface TeamPerformance {
+  id: string;
+  name: string;
+  role: Role;
+  managerId: string | null;
+  avatar?: string | null;
+  wonRevenue: number;
+  dealsWon: number;
+  openDeals: number;
+  openPipeline: number;
+  totalTasks: number;
+  completedTasks: number;
+  inProgressTasks: number;
+  pendingTasks: number;
+  overdueTasks: number;
+  taskCompletionRate: number;
+  totalLeads: number;
+  qualifiedLeads: number;
+  convertedLeads: number;
+  activityToday: number;
+  activityThisWeek: number;
+}
+
 /** Live per-employee performance figures, shown on Employees and Reports pages. */
 export interface EmployeePerformance {
   userId: string;
@@ -192,6 +222,7 @@ export interface EmployeePerformance {
   dealsClosed: number;
   revenueGenerated: number;
   tasksCompleted: number;
+  tasksInprogress: number;
   overdueTasks: number;
   conversionRate: number;
   performanceScore: number;

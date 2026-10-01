@@ -11,7 +11,6 @@ enum Role {
   ADMIN
   MANAGER
   SALES_EXECUTIVE
-  VIEWER
 }
 
 enum CustomerStatus {
@@ -37,8 +36,9 @@ enum Priority {
 }
 
 enum DealStage {
-  DISCOVERY
+  DISCOVERY        // shown as "New" in the UI
   QUALIFICATION
+  NEEDS_ANALYSIS
   PROPOSAL
   NEGOTIATION
   CLOSED_WON
@@ -71,6 +71,22 @@ enum NotificationType {
   SYSTEM
 }
 
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  status    String   @default("ACTIVE") // ACTIVE, SUSPENDED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users      User[]
+  customers  Customer[]
+  leads      Lead[]
+  deals      Deal[]
+  tasks      Task[]
+  meetings   Meeting[]
+  activities Activity[]
+}
+
 model User {
   id           String         @id @default(uuid())
   name         String
@@ -83,6 +99,13 @@ model User {
   status       String         @default("ACTIVE") // ACTIVE, SUSPENDED
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
+
+  // Tenant + hierarchy (nullable so existing rows survive db push; see prisma/backfill-tenancy.ts)
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  managerId      String?       // set only for SALES_EXECUTIVE -> their MANAGER
+  manager        User?         @relation("TeamHierarchy", fields: [managerId], references: [id], onDelete: SetNull)
+  teamMembers    User[]        @relation("TeamHierarchy")
 
   // Relations
   assignedCustomers Customer[]     @relation("AssignedCustomers")
@@ -98,6 +121,8 @@ model User {
 
   @@index([email])
   @@index([role])
+  @@index([organizationId])
+  @@index([managerId])
 }
 
 model RefreshToken {
@@ -114,7 +139,7 @@ model RefreshToken {
 model Customer {
   id          String         @id @default(uuid())
   name        String
-  email       String         @unique
+  email       String
   phone       String?
   company     String?
   industry    String?
@@ -127,6 +152,9 @@ model Customer {
   country     String?        @default("India")
   status      CustomerStatus @default(ACTIVE)
   notes       String?
+
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   assignedToId String?
   assignedTo   User?         @relation("AssignedCustomers", fields: [assignedToId], references: [id], onDelete: SetNull)
@@ -142,6 +170,8 @@ model Customer {
   tasks       Task[]
   meetings    Meeting[]
 
+  @@unique([organizationId, email])
+  @@index([organizationId])
   @@index([email])
   @@index([status])
   @@index([assignedToId])
@@ -160,6 +190,9 @@ model Lead {
   notes        String?
   followUpDate DateTime?
 
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
   assignedToId String?
   assignedTo   User?       @relation("AssignedLeads", fields: [assignedToId], references: [id], onDelete: SetNull)
 
@@ -169,6 +202,9 @@ model Lead {
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
+  tasks        Task[]
+
+  @@index([organizationId])
   @@index([stage])
   @@index([assignedToId])
   @@index([customerId])
@@ -181,6 +217,11 @@ model Deal {
   stage        DealStage   @default(DISCOVERY)
   probability  Int         @default(20) // Percentage 0 - 100
   closingDate  DateTime?
+  nextStep     String?
+  description  String?
+
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   customerId   String?
   customer     Customer?   @relation(fields: [customerId], references: [id], onDelete: Cascade)
@@ -191,6 +232,9 @@ model Deal {
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
+  tasks        Task[]
+
+  @@index([organizationId])
   @@index([stage])
   @@index([customerId])
   @@index([assignedToId])
@@ -204,6 +248,9 @@ model Task {
   priority    Priority    @default(MEDIUM)
   status      TaskStatus  @default(PENDING)
 
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
   assignedToId String?
   assignedTo   User?      @relation("AssignedTasks", fields: [assignedToId], references: [id], onDelete: SetNull)
 
@@ -213,9 +260,16 @@ model Task {
   customerId   String?
   customer     Customer?  @relation(fields: [customerId], references: [id], onDelete: SetNull)
 
+  leadId       String?
+  lead         Lead?      @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  dealId       String?
+  deal         Deal?      @relation(fields: [dealId], references: [id], onDelete: SetNull)
+
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
+  @@index([organizationId])
   @@index([status])
   @@index([priority])
   @@index([assignedToId])
@@ -231,6 +285,9 @@ model Meeting {
   type        MeetingType   @default(ONLINE)
   status      MeetingStatus @default(SCHEDULED)
 
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
   hostId      String?
   host        User?         @relation("HostedMeetings", fields: [hostId], references: [id], onDelete: SetNull)
 
@@ -240,6 +297,7 @@ model Meeting {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
+  @@index([organizationId])
   @@index([startTime])
   @@index([hostId])
 }
@@ -269,6 +327,11 @@ model Activity {
   details    String   // Human-readable summary
   createdAt  DateTime @default(now())
 
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([entityType, entityId])
   @@index([userId])
   @@index([createdAt])
 }

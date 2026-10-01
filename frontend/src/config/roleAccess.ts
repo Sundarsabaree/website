@@ -60,16 +60,11 @@ const NAV_BY_ROLE: Record<Role, NavItem[]> = {
     item("/calendar", "Calendar", Calendar),
     item("/notifications", "Notifications", Bell),
   ],
-  VIEWER: [
-    item("/dashboard", "Dashboard", LayoutDashboard),
-    item("/customers", "Customers", Users),
-    item("/reports", "Reports", BarChart3),
-    item("/notifications", "Notifications", Bell),
-  ],
 };
 
-// Every signed-in user can open their own profile (password, avatar, etc.).
-const ALWAYS_ALLOWED = ["/profile"];
+// Every signed-in user can open their own profile and account settings
+// (password, avatar, role display, etc.) regardless of role.
+const ALWAYS_ALLOWED = ["/profile", "/settings"];
 
 export const getNavItems = (role?: Role | null): NavItem[] =>
   role ? (NAV_BY_ROLE[role] ?? []) : [];

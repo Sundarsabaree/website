@@ -10,6 +10,69 @@ const getHeaders = () => {
   };
 };
 
+let refreshPromise: Promise<boolean> | null = null;
+
+const refreshAccessToken = async (): Promise<boolean> => {
+  const refreshToken = localStorage.getItem("crm_refresh_token");
+  if (!refreshToken) return false;
+
+  if (!refreshPromise) {
+    refreshPromise = fetch(`${BASE_URL}/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken }),
+    })
+      .then(async (res) => {
+        if (!res.ok) return false;
+        const json = await res.json();
+        const tokens = json?.data;
+        if (!tokens?.accessToken || !tokens?.refreshToken) return false;
+
+        localStorage.setItem("crm_access_token", tokens.accessToken);
+        localStorage.setItem("crm_refresh_token", tokens.refreshToken);
+        return true;
+      })
+      .catch(() => false)
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+
+  return refreshPromise;
+};
+
+const request = async (
+  endpoint: string,
+  init: RequestInit,
+  canRetry = true,
+): Promise<any> => {
+  const res = await fetch(`${BASE_URL}${endpoint}`, {
+    ...init,
+    headers: {
+      ...getHeaders(),
+      ...(init.headers || {}),
+    },
+  });
+
+  if (res.status === 401 && canRetry && !endpoint.startsWith("/auth/")) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) return request(endpoint, init, false);
+  }
+
+  let json: any = {};
+  try {
+    json = await res.json();
+  } catch {
+    // Some proxy and download responses do not contain JSON.
+  }
+
+  if (!res.ok) {
+    throw new Error(json?.message || `API Error: ${res.statusText}`);
+  }
+
+  return { data: json };
+};
+
 const buildQuery = (params?: Record<string, any>) => {
   if (!params) return "";
 
@@ -27,67 +90,25 @@ const buildQuery = (params?: Record<string, any>) => {
 
 export const api = {
   async get(endpoint: string) {
-    const res = await fetch(`${BASE_URL}${endpoint}`, {
-      headers: getHeaders(),
-    });
-
-    const json = await res.json();
-
-    if (!res.ok) {
-      throw new Error(json?.message || `API Error: ${res.statusText}`);
-    }
-
-    return { data: json };
+    return request(endpoint, { method: "GET" });
   },
 
   async post(endpoint: string, data: unknown) {
-    const res = await fetch(`${BASE_URL}${endpoint}`, {
+    return request(endpoint, {
       method: "POST",
-      headers: getHeaders(),
       body: JSON.stringify(data),
     });
-
-    const json = await res.json();
-
-    if (!res.ok) {
-      throw new Error(json?.message || `API Error: ${res.statusText}`);
-    }
-
-    return { data: json };
   },
 
   async put(endpoint: string, data: unknown) {
-    const res = await fetch(`${BASE_URL}${endpoint}`, {
+    return request(endpoint, {
       method: "PUT",
-      headers: getHeaders(),
       body: JSON.stringify(data),
     });
-
-    const json = await res.json();
-
-    if (!res.ok) {
-      throw new Error(json?.message || `API Error: ${res.statusText}`);
-    }
-
-    return { data: json };
   },
 
   async delete(endpoint: string) {
-    const res = await fetch(`${BASE_URL}${endpoint}`, {
-      method: "DELETE",
-      headers: getHeaders(),
-    });
-
-    let json = {};
-    try {
-      json = await res.json();
-    } catch {}
-
-    if (!res.ok) {
-      throw new Error((json as any)?.message || `API Error: ${res.statusText}`);
-    }
-
-    return { data: json };
+    return request(endpoint, { method: "DELETE" });
   },
 };
 
@@ -135,9 +156,19 @@ export const customerService = {
 // ================= EMPLOYEES =================
 
 export const employeeService = {
-  getAll: () => api.get("/employees"),
+  getAll: (params?: Record<string, any>) =>
+    api.get(`/employees${buildQuery(params)}`),
 
   getPerformance: () => api.get("/employees/performance"),
+
+  create: (data: any) => api.post("/employees", data),
+
+  update: (id: string, data: any) => api.put(`/employees/${id}`, data),
+
+  updateTeam: (id: string, salesExecutiveIds: string[]) =>
+    api.put(`/employees/${id}/team`, { salesExecutiveIds }),
+
+  delete: (id: string) => api.delete(`/employees/${id}`),
 };
 
 // ================= DASHBOARD =================
@@ -148,4 +179,100 @@ export const dashboardService = {
   getCharts: () => api.get("/dashboard/charts"),
 
   getActivities: () => api.get("/dashboard/activities"),
+
+  getTeamPerformance: () => api.get("/dashboard/team-performance"),
+};
+
+// ================= LEADS =================
+
+export const leadService = {
+  getAll: (params?: Record<string, any>) =>
+    api.get(`/leads${buildQuery(params)}`),
+
+  create: (data: any) => api.post("/leads", data),
+
+  update: (id: string, data: any) => api.put(`/leads/${id}`, data),
+
+  delete: (id: string) => api.delete(`/leads/${id}`),
+};
+
+// ================= DEALS =================
+
+export const dealService = {
+  getAll: (params?: Record<string, any>) =>
+    api.get(`/deals${buildQuery(params)}`),
+
+  create: (data: any) => api.post("/deals", data),
+
+  update: (id: string, data: any) => api.put(`/deals/${id}`, data),
+
+  delete: (id: string) => api.delete(`/deals/${id}`),
+};
+
+// ================= TASKS =================
+
+export const taskService = {
+  getAll: (params?: Record<string, any>) =>
+    api.get(`/tasks${buildQuery(params)}`),
+
+  create: (data: any) => api.post("/tasks", data),
+
+  update: (id: string, data: any) => api.put(`/tasks/${id}`, data),
+
+  delete: (id: string) => api.delete(`/tasks/${id}`),
+};
+
+// ================= CALENDAR =================
+
+export const calendarService = {
+  getEvents: (params?: Record<string, any>) =>
+    api.get(`/calendar/events${buildQuery(params)}`),
+
+  createMeeting: (data: any) => api.post("/calendar/meetings", data),
+
+  updateMeeting: (id: string, data: any) =>
+    api.put(`/calendar/meetings/${id}`, data),
+
+  deleteMeeting: (id: string) => api.delete(`/calendar/meetings/${id}`),
+};
+
+// ================= REPORTS =================
+
+export const reportService = {
+  getAnalytics: () => api.get("/reports/analytics"),
+
+  // The export endpoint requires the Bearer token, so it can't just be a
+  // plain <a href>; fetch it with auth headers and download the blob.
+  async exportCsv(type: "customers" | "leads") {
+    const res = await fetch(`${BASE_URL}/reports/export-csv?type=${type}`, {
+      headers: getHeaders(),
+    });
+    if (!res.ok) {
+      const message = await res
+        .json()
+        .then((j) => j?.message)
+        .catch(() => null);
+      throw new Error(message || "Failed to export report.");
+    }
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `smartcrm-${type}-export.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  },
+};
+
+// ================= PROFILE / SETTINGS =================
+
+export const profileService = {
+  get: () => api.get("/profile"),
+
+  update: (data: any) => api.put("/profile", data),
+
+  changePassword: (data: { currentPassword: string; newPassword: string }) =>
+    api.put("/profile/password", data),
 };

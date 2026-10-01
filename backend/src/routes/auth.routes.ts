@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router } from "express";
 import {
   register,
   login,
@@ -8,19 +8,29 @@ import {
   forgotPassword,
   resetPassword,
   registerSchema,
-  loginSchema
-} from '../controllers/auth.controller.js';
-import { authenticate } from '../middleware/auth.js';
-import { validateBody } from '../middleware/validate.js';
+  loginSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
+} from "../controllers/auth.controller.js";
+import { authenticate } from "../middleware/auth.js";
+import { validateBody } from "../middleware/validate.js";
 
 const router = Router();
 
-router.post('/register', validateBody(registerSchema), register);
-router.post('/login', validateBody(loginSchema), login);
-router.post('/refresh', refresh);
-router.post('/logout', logout);
-router.get('/me', authenticate, me);
-router.post('/forgot-password', forgotPassword);
-router.post('/reset-password', resetPassword);
+router.post("/register", validateBody(registerSchema), register);
+router.post("/login", validateBody(loginSchema), login);
+router.post("/refresh", refresh);
+router.post("/logout", logout);
+router.get("/me", authenticate, me);
+router.post(
+  "/forgot-password",
+  validateBody(forgotPasswordSchema),
+  forgotPassword,
+);
+router.post(
+  "/reset-password",
+  validateBody(resetPasswordSchema),
+  resetPassword,
+);
 
 export default router;

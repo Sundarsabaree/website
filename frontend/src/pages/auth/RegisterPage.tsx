@@ -7,6 +7,7 @@ import {
   Mail,
   Lock,
   User,
+  Building2,
   Phone,
   Zap,
   ArrowRight,
@@ -18,9 +19,11 @@ export const RegisterPage: React.FC = () => {
   const { register } = useAuth();
   const navigate = useNavigate();
   const [form, setForm] = useState({
+    organizationName: "",
     name: "",
     email: "",
     password: "",
+    confirmPassword: "",
     phone: "",
     department: "Sales",
   });
@@ -30,24 +33,31 @@ export const RegisterPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name || !form.email || !form.password) {
+    if (!form.organizationName || !form.name || !form.email || !form.password) {
       setError("Please fill in all required fields.");
       return;
     }
-    if (form.password.length < 6) {
-      setError("Password must be at least 6 characters.");
+    if (form.password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+    if (form.password !== form.confirmPassword) {
+      setError("Passwords do not match.");
       return;
     }
     try {
       setLoading(true);
       setError("");
-      await register(form);
+      await register({
+        organizationName: form.organizationName,
+        name: form.name,
+        email: form.email,
+        password: form.password,
+        confirmPassword: form.confirmPassword,
+      });
       navigate("/dashboard");
     } catch (err: any) {
-      setError(
-        err?.response?.data?.message ||
-          "Registration failed. Please try again.",
-      );
+      setError(err?.message || "Registration failed. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -95,6 +105,24 @@ export const RegisterPage: React.FC = () => {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="block text-sm font-medium text-slate-300">
+                Organisation Name *
+              </label>
+              <div className="relative">
+                <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  value={form.organizationName}
+                  onChange={(e) =>
+                    setForm({ ...form, organizationName: e.target.value })
+                  }
+                  placeholder="Northstar Labs"
+                  className="w-full bg-slate-800/80 border border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-blue-500/60 transition-all"
+                />
+              </div>
+            </div>
+
             <div className="space-y-1.5">
               <label className="block text-sm font-medium text-slate-300">
                 Full Name *
@@ -153,6 +181,24 @@ export const RegisterPage: React.FC = () => {
                     <Eye className="w-4 h-4" />
                   )}
                 </button>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-sm font-medium text-slate-300">
+                Confirm Password *
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={form.confirmPassword}
+                  onChange={(e) =>
+                    setForm({ ...form, confirmPassword: e.target.value })
+                  }
+                  placeholder="Repeat your password"
+                  className="w-full bg-slate-800/80 border border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-blue-500/60 transition-all"
+                />
               </div>
             </div>
 

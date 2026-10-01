@@ -11,24 +11,14 @@ import { CustomersPage } from "./pages/CustomersPage.js";
 import ProfilePage from "./pages/ProfilePage.js";
 import { RoleGuard } from "./components/layout/RoleGuard.js";
 import { LeadsPage } from "./pages/LeadsPage.js";
-
-// Temporary pages (so sidebar routes don't redirect to Dashboard)
-const PlaceholderPage = ({ title }: { title: string }) => (
-  <div className="p-8 text-white">
-    <h1 className="text-3xl font-bold mb-2">{title}</h1>
-    <p className="text-slate-400">
-      This page is connected successfully. You can build its features next.
-    </p>
-  </div>
-);
-
-const SalesPage = () => <PlaceholderPage title="Sales & Deals" />;
-const TasksPage = () => <PlaceholderPage title="Tasks" />;
-const CalendarPage = () => <PlaceholderPage title="Calendar" />;
-const EmployeesPage = () => <PlaceholderPage title="Employees" />;
-const ReportsPage = () => <PlaceholderPage title="Reports" />;
-const SettingsPage = () => <PlaceholderPage title="Settings" />;
-const NotificationsPage = () => <PlaceholderPage title="Notifications" />;
+import { EmployeesPage } from "./pages/EmployeesPage.js";
+import { DealsPage } from "./pages/DealsPage.js";
+import { TasksPage } from "./pages/TasksPage.js";
+import { CalendarPage } from "./pages/CalendarPage.js";
+import NotificationsPage from "./pages/NotificationsPage.js";
+import ReportsPage from "./pages/ReportsPage.js";
+import SettingsPage from "./pages/SettingsPage.js";
+import { LandingPage } from "./pages/LandingPage.js";
 
 const App: React.FC = () => {
   return (
@@ -37,17 +27,18 @@ const App: React.FC = () => {
         <AuthProvider>
           <NotificationProvider>
             <Routes>
-              {/* Public Routes */}
+              {/* Public Routes — accessible without authentication */}
+              <Route path="/" element={<LandingPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
 
-              {/* Protected Routes */}
+              {/* Protected Routes — require authentication */}
               <Route element={<AppLayout />}>
                 <Route element={<RoleGuard />}>
                   <Route path="/dashboard" element={<DashboardPage />} />
                   <Route path="/customers" element={<CustomersPage />} />
                   <Route path="/leads" element={<LeadsPage />} />
-                  <Route path="/sales" element={<SalesPage />} />
+                  <Route path="/sales" element={<DealsPage />} />
                   <Route path="/tasks" element={<TasksPage />} />
                   <Route path="/calendar" element={<CalendarPage />} />
                   <Route path="/employees" element={<EmployeesPage />} />
@@ -61,8 +52,8 @@ const App: React.FC = () => {
                 </Route>
               </Route>
 
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+              {/* Catch-all — redirect to landing if unknown route */}
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </NotificationProvider>
         </AuthProvider>
